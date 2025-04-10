@@ -1,7 +1,9 @@
 import Lean
 import Mathlib.Algebra.BigOperators.Group.Multiset.Basic
 import Mathlib.Data.List.Permutation
+import Mathlib.Data.Multiset.Basic
 import Mathlib.Data.Multiset.Defs
+import Mathlib.Data.Multiset.Sort
 
 -- A linear logic proposition, with atoms folded in to avoid the extra constructor around them
 -- (could be revisited).
@@ -58,9 +60,9 @@ inductive LL : Multiset LLProp → Multiset LLProp → Prop where
     A ⊢ A
 
   | Cut :
-    Δ₁ ⊢ A + Γ₁ →     A + Δ₂ ⊢ Γ₂ →
+    Γ₁ ⊢ A + Δ₁ →     A + Γ₂ ⊢ Δ₂ →
     -------------------------------
-            Δ₁ + Δ2 ⊢ Γ₁ + Γ₂
+            Γ₁ + Γ2 ⊢ Δ₁ + Δ₂
 
   -- no exchange rule, not because it does not hold, but because we are using multisets which
   -- already allow "exchange" (as they are quotiented by reorderings)
@@ -68,39 +70,46 @@ inductive LL : Multiset LLProp → Multiset LLProp → Prop where
   -- no weakening, no contraction: this is a substructural (linear) logic!
 
   | MulConjIntro :
-    Δ₁ ⊢ {A₁} →     Δ₂ ⊢ {A₂} →
-    ---------------------------
-        Δ₁ + Δ₂ ⊢ {A₁ ⊗ A₂}
+    Γ = Γ₁ + Γ₂ →           Δ = Δ₁ + Δ₂ →
+    Γ₁ ⊢ {A₁} + Δ₁ →     Γ₂ ⊢ {A₂} + Δ₂ →
+    -------------------------------------
+              Γ ⊢ {A₁ ⊗ A₂} + Δ
 
-  -- | MulDisjIntroL :
-  --   Δ₁ ⊢ A₁ :: Γ₁ →     Δ₂ ⊢ A₂ :: Γ₂ →
-  --   -----------------------------------
-  --   (A₁ ⅋  A₂) :: (Δ₁ ++ Δ₂) ⊢ Γ₁ ++ Γ₂
+  | MulDisjIntroL :
+      Γ = Γ₁ + Γ₂ →       Δ = Δ₁ + Δ₂ →
+    {A} + Γ₁ ⊢ Δ₁ →     {B} + Γ₂ ⊢ Δ₂ →
+    -----------------------------------
+              {A ⅋ B} + Γ ⊢ Δ
+
+  -- | MulDisjIntroR :
+  --   Δ ⊢ {A, B} + Γ →
+  --   ----------------
+  --   Δ ⊢ {A ⅋ B} + Γ
 
   -- | MulConjUnitIntro :
-  --     Δ ⊢ Γ →
+  --     Γ ⊢ Δ →
   --   ----------
-  --   Δ ⊢ 𝟙 :: Γ
+  --   Γ ⊢ 𝟙 :: Δ
 
   | AddConjElimL :
-    Δ ⊢ {A & B} →
+    Γ ⊢ {A & B} →
     -------------
-      Δ ⊢ {A}
+      Γ ⊢ {A}
 
   | AddConjElimR :
-    Δ ⊢ {A & B} →
+    Γ ⊢ {A & B} →
     -------------
-      Δ ⊢ {B}
+      Γ ⊢ {B}
 
-  -- | NegationIntroL :
-  --   Δ ⊢ B :: Γ →
-  --   ------------
-  --   ~ B :: Δ ⊢ Γ
+  | NegationIntroL :
+    Γ ⊢ {B} + Δ →
+    -------------
+    {~ B} + Γ ⊢ Δ
 
-  -- | NegationIntroR :
-  --   B :: Δ ⊢ Γ →
-  --   ------------
-  --   Δ ⊢ ~ B :: Γ
+  | NegationIntroR :
+    {B} + Γ ⊢ Δ →
+    -------------
+    Γ ⊢ {~ B} + Δ
 
   -- TODO: the other rules...
 
@@ -121,15 +130,34 @@ def cut :
     rw [H1, H2]
     apply LL.Cut
 
+-- There's gotta be an easier way to do this in general...
+lemma flipMultiset2 : ({A, B} : Multiset LLProp) = {B, A} := by
+  rw [Multiset.ext]
+  intros a
+  simp
+  rw [Multiset.count_cons]
+  rw [Multiset.count_cons]
+  aesop
+
 -- This rule is useful but derivable.
 def LollipopElim :
   Δ = {A, A ⊸ B} →
   ----------------
       Δ ⊢ {B}
   := by
+    have Flip : ({A, A ⊸ B} : Multiset LLProp) = {A ⊸ B, A} := by
+      rw [flipMultiset2]
+    rw [Flip]
+    intros H
+    rw [H]
     rw [lollipop]
-    -- TODO...
-    sorry
+    apply LL.MulDisjIntroL (A := ~ A) (B := B) (Γ := {A}) (Δ := {B})
+      (Γ₁ := {A}) (Γ₂ := {}) (Δ₁ := {}) (Δ₂ := {B})
+    rfl
+    rfl
+    apply LL.NegationIntroL
+    apply LL.Init
+    apply LL.Init
 
 def lollipopElim :
   Δ = {A, A ⊸ B} + Δ₁ →     {B} + Δ₁ ⊢ Γ →

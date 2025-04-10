@@ -223,11 +223,17 @@ instance : DecidablePred (isLollipopWithLHS lhs) := by
   intros x
   simp
   cases x with
-  | MulDisj a b =>
-    if a = ~ lhs
-    then right; exists b; simp; assumption
-    else left; intros E; cases E; sorry
+  | MulDisj a b => _
   | _ => left; simp
+  if H: a = ~ lhs
+    then right; exists b; simp; assumption
+    else
+      left; intros E
+      cases E with
+        | intro rhs EQ => _
+      cases EQ
+      apply H
+      rfl
 
 -- Finds a lollipop with the given LHS (i.e. a `lhs ⊸ _`) within a multiset, returning the whole
 -- lollipop.
@@ -240,9 +246,9 @@ elab "spend" spent:term : tactic => unsafe do
   let goal ← Lean.Elab.Tactic.getMainTarget
   match goal with
   | Expr.app (Expr.app (Expr.const ``LL _) ctx) _ =>
-    let ctx' ← evalExpr (Multiset LLProp) (mkApp (mkConst `Multiset) (mkConst `LLProp)) ctx
+    let ctx' ← evalExpr (Multiset LLProp) (← whnf (← inferType ctx)) ctx
     match findLollipop LLProp.Coin ctx' with
-    | some s => logInfo s!"yes"
+    | some s => logInfo "TODO: build the proof term..."
     | none => logInfo "nope"
   | _ => logInfo "no"
     -- evalTactic (← `(tactic| apply lollipopElim (A := $spent)))
